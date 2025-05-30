@@ -116,6 +116,22 @@ class ResumeTool:
             doc.add_paragraph(para)
         doc.save(path)
 
+    def evaluate_resume(self) -> str:
+        prompt = f"""
+        Evaluate this resume against the job description below.
+        Provide:
+        - A relevance score out of 100
+        - A list of important keywords missing from the resume
+        - Suggestions for improvement
+
+        Resume:
+        {self.resume_text}
+
+        Job Description:
+        {self.job_description}
+        """
+        return self.generate_with_llama(prompt)
+
 
 class ResumeApp(ctk.CTk):
     def __init__(self):
@@ -128,7 +144,7 @@ class ResumeApp(ctk.CTk):
         self.create_widgets()
 
     def create_widgets(self):
-        ctk.CTkLabel(self, text="Upload Resume (PDF):").grid(row=0, column=0, padx=10, pady=10, sticky="w")
+        ctk.CTkLabel(self, text="Upload Resume: ").grid(row=0, column=0, padx=10, pady=10, sticky="w")
         ctk.CTkButton(self, text="Browse...", command=self.browse_resume).grid(row=0, column=1, sticky="w")
         self.file_label = ctk.CTkLabel(self, text="No file selected", text_color="gray")
         self.file_label.grid(row=0, column=2, sticky="w")
@@ -149,12 +165,18 @@ class ResumeApp(ctk.CTk):
         self.cover_preview = ScrolledText(self, width=100, height=10)
         self.cover_preview.grid(row=7, column=0, columnspan=3, padx=10, pady=5)
 
+        ctk.CTkLabel(self, text="Resume Evaluation:").grid(row=9, column=0, sticky="w", padx=10)
+        self.eval_preview = ScrolledText(self, width=100, height=10)
+        self.eval_preview.grid(row=10, column=0, columnspan=3, padx=10, pady=5)
+
         self.format_var = ctk.StringVar(value="PDF")
         self.format_menu = ctk.CTkOptionMenu(self, values=["PDF", "TXT", "DOCX"], variable=self.format_var)
         self.format_menu.grid(row=8, column=1, padx=10)
 
         ctk.CTkButton(self, text="Download Resume", command=self.save_edited_resume).grid(row=8, column=0, pady=10)
         ctk.CTkButton(self, text="Download Cover Letter", command=self.save_edited_cover_letter).grid(row=8, column=2, pady=10)
+        ctk.CTkButton(self, text="Evaluate Resume", command=self.evaluate_resume).grid(row=3, column=2, pady=5)
+
 
     def browse_resume(self):
         path = filedialog.askopenfilename(filetypes=[("Document Files", "*.pdf *.docx"), ("PDF Files", "*.pdf"), ("Word Documents", "*.docx")])
@@ -232,6 +254,23 @@ class ResumeApp(ctk.CTk):
                     messagebox.showinfo("Success", f"Cover letter saved successfully:\n{path}")
                 except Exception as e:
                     messagebox.showerror("Error", f"Failed to save cover letter:\n{e}")
+    def evaluate_resume(self):
+        if not self.resume_path or not self.job_text.get("1.0", "end").strip():
+            messagebox.showerror("Error", "Upload a resume and enter job description.")
+            return
+
+        def run():
+            try:
+                tool = ResumeTool(self.resume_path, self.job_text.get("1.0", "end").strip())
+                result = tool.evaluate_resume()
+                self.eval_preview.delete("1.0", "end")
+                self.eval_preview.insert("end", result)
+                messagebox.showinfo("Success", "Resume evaluated successfully!")
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to evaluate resume:\n{e}")
+
+        threading.Thread(target=run).start()
+
 
 
 if __name__ == "__main__":
